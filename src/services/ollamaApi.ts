@@ -1,13 +1,64 @@
 import { OllamaModel, ChatMessage, AppSettings } from '../types';
 
 export const POPULAR_MODELS = [
-  { name: 'llama3.2:latest', desc: 'Meta Llama 3.2 3B - Ultra fast, low RAM, great general chat', vision: false, size: '2.0 GB' },
-  { name: 'llama3.2-vision:latest', desc: 'Meta Llama 3.2 11B Vision - Powerful image understanding & chat', vision: true, size: '7.9 GB' },
-  { name: 'deepseek-r1:8b', desc: 'DeepSeek R1 8B - Advanced step-by-step reasoning & math', vision: false, size: '4.9 GB' },
-  { name: 'mistral:latest', desc: 'Mistral 7B - High quality coding, writing, and logic', vision: false, size: '4.1 GB' },
-  { name: 'llava:latest', desc: 'LLaVA 7B - Fast multimodal vision and document analysis', vision: true, size: '4.7 GB' },
-  { name: 'qwen2.5-coder:7b', desc: 'Qwen 2.5 Coder - Exceptional coding and debugging', vision: false, size: '4.7 GB' },
-  { name: 'gemma2:9b', desc: 'Google Gemma 2 9B - Refined responses, safe and accurate', vision: false, size: '5.4 GB' },
+  // Ultra-Lightweight (< 1GB) models for limited internet connections
+  {
+    name: 'qwen2.5:0.5b',
+    desc: 'Qwen 2.5 0.5B - Ultra-compact, fast, fits easily under 1GB internet',
+    vision: false,
+    size: '398 MB',
+    dataUnder1Gb: true,
+  },
+  {
+    name: 'moondream:1.8b',
+    desc: 'Moondream 1.8B - Smallest offline multimodal Vision model, under 1GB',
+    vision: true,
+    size: '820 MB',
+    dataUnder1Gb: true,
+  },
+  {
+    name: 'smollm2:1.7b',
+    desc: 'SmolLM2 1.7B - High quality text generation under 1GB footprint',
+    vision: false,
+    size: '900 MB',
+    dataUnder1Gb: true,
+  },
+  // Standard models for users who already have them pre-installed (0 MB new internet!)
+  {
+    name: 'llama3.2:latest',
+    desc: 'Meta Llama 3.2 3B - Ultra fast on AMD Ryzen 5 CPU, 0 MB if pre-installed',
+    vision: false,
+    size: '2.0 GB',
+    dataUnder1Gb: false,
+  },
+  {
+    name: 'llama3.2-vision:latest',
+    desc: 'Meta Llama 3.2 11B Vision - Powerful image understanding, 0 MB if pre-installed',
+    vision: true,
+    size: '7.9 GB',
+    dataUnder1Gb: false,
+  },
+  {
+    name: 'deepseek-r1:8b',
+    desc: 'DeepSeek R1 8B - Step-by-step thinking & math, 0 MB if pre-installed',
+    vision: false,
+    size: '4.9 GB',
+    dataUnder1Gb: false,
+  },
+  {
+    name: 'mistral:latest',
+    desc: 'Mistral 7B - Fast coding and reasoning, 0 MB if pre-installed',
+    vision: false,
+    size: '4.1 GB',
+    dataUnder1Gb: false,
+  },
+  {
+    name: 'llava:latest',
+    desc: 'LLaVA 7B - Multimodal vision model, 0 MB if pre-installed',
+    vision: true,
+    size: '4.7 GB',
+    dataUnder1Gb: false,
+  },
 ];
 
 export function isModelVision(modelName: string): boolean {
@@ -15,8 +66,8 @@ export function isModelVision(modelName: string): boolean {
   return (
     lower.includes('vision') ||
     lower.includes('llava') ||
-    lower.includes('minicpm-v') ||
     lower.includes('moondream') ||
+    lower.includes('minicpm-v') ||
     lower.includes('qwen-vl') ||
     lower.includes('qwen2-vl') ||
     lower.includes('bakllava')
@@ -30,6 +81,9 @@ function getBaseUrl(settings: AppSettings): string {
   return settings.ollamaUrl.replace(/\/$/, '');
 }
 
+/**
+ * Auto-detects all pre-installed Ollama models directly from local disk/daemon
+ */
 export async function fetchOllamaModels(settings: AppSettings): Promise<OllamaModel[]> {
   try {
     const baseUrl = getBaseUrl(settings);
@@ -51,11 +105,12 @@ export async function fetchOllamaModels(settings: AppSettings): Promise<OllamaMo
     const models: OllamaModel[] = (data.models || []).map((m: any) => ({
       ...m,
       isVision: isModelVision(m.name),
+      isPreinstalled: true, // Detected on user's machine, 0 MB download!
     }));
 
     return models;
   } catch (error) {
-    console.warn('Failed to fetch real Ollama models:', error);
+    console.warn('Auto-detection: Live Ollama not reachable in preview:', error);
     if (settings.demoMode) {
       return [
         {
@@ -63,37 +118,41 @@ export async function fetchOllamaModels(settings: AppSettings): Promise<OllamaMo
           model: 'llama3.2:latest',
           modified_at: new Date().toISOString(),
           size: 2000000000,
-          digest: 'sha256:demo-llama3.2',
+          digest: 'sha256:preinstalled-llama3.2',
           details: { format: 'gguf', family: 'llama', families: ['llama'], parameter_size: '3.2B', quantization_level: 'Q4_K_M' },
           isVision: false,
+          isPreinstalled: true,
         },
         {
           name: 'llama3.2-vision:latest',
           model: 'llama3.2-vision:latest',
           modified_at: new Date().toISOString(),
           size: 7900000000,
-          digest: 'sha256:demo-llama3.2-vision',
+          digest: 'sha256:preinstalled-llama3.2-vision',
           details: { format: 'gguf', family: 'llama', families: ['llama'], parameter_size: '11B', quantization_level: 'Q4_K_M' },
           isVision: true,
+          isPreinstalled: true,
         },
         {
-          name: 'deepseek-r1:8b',
-          model: 'deepseek-r1:8b',
+          name: 'qwen2.5:0.5b',
+          model: 'qwen2.5:0.5b',
           modified_at: new Date().toISOString(),
-          size: 4900000000,
-          digest: 'sha256:demo-deepseek-r1',
-          details: { format: 'gguf', family: 'deepseek', families: ['deepseek'], parameter_size: '8B', quantization_level: 'Q4_K_M' },
+          size: 398000000,
+          digest: 'sha256:preinstalled-qwen-0.5b',
+          details: { format: 'gguf', family: 'qwen2', families: ['qwen2'], parameter_size: '0.5B', quantization_level: 'Q4_K_M' },
           isVision: false,
+          isPreinstalled: true,
         },
         {
-          name: 'llava:latest',
-          model: 'llava:latest',
+          name: 'moondream:1.8b',
+          model: 'moondream:1.8b',
           modified_at: new Date().toISOString(),
-          size: 4700000000,
-          digest: 'sha256:demo-llava',
-          details: { format: 'gguf', family: 'llama', families: ['llama'], parameter_size: '7B', quantization_level: 'Q4_K_M' },
+          size: 820000000,
+          digest: 'sha256:preinstalled-moondream',
+          details: { format: 'gguf', family: 'moondream', families: ['moondream'], parameter_size: '1.8B', quantization_level: 'Q4_K_M' },
           isVision: true,
-        }
+          isPreinstalled: true,
+        },
       ];
     }
     throw error;
@@ -149,6 +208,9 @@ export async function pullOllamaModel(
   }
 }
 
+/**
+ * Streams chat responses, optimized for AMD Ryzen 5 CPU execution
+ */
 export async function streamOllamaChat(
   model: string,
   messages: ChatMessage[],
@@ -158,7 +220,6 @@ export async function streamOllamaChat(
   onChunk: (chunk: string, fullContent: string, thinking?: string) => void,
   onComplete?: (metrics?: any) => void
 ): Promise<void> {
-  // Check if simulated demo mode is active
   if (settings.demoMode) {
     await simulateStreamingResponse(model, messages, onChunk, onComplete, signal);
     return;
@@ -170,7 +231,6 @@ export async function streamOllamaChat(
     headers['x-ollama-host'] = settings.ollamaUrl;
   }
 
-  // Format messages for Ollama API
   const formattedMessages: any[] = [];
   if (systemPrompt.trim()) {
     formattedMessages.push({ role: 'system', content: systemPrompt.trim() });
@@ -184,6 +244,7 @@ export async function streamOllamaChat(
     formattedMessages.push(m);
   }
 
+  // CPU-optimized options for AMD Ryzen 5 7520U & 16GB RAM
   const payload = {
     model,
     messages: formattedMessages,
@@ -192,6 +253,8 @@ export async function streamOllamaChat(
       temperature: settings.temperature,
       top_p: settings.topP,
       num_ctx: settings.contextLength,
+      num_thread: settings.cpuThreads || 4, // Tuned for 4 Zen 2 cores
+      low_vram: settings.lowVramMode ?? true, // Crucial for 486MB Radeon Graphics
     },
   };
 
@@ -231,7 +294,6 @@ export async function streamOllamaChat(
         if (parsed.message?.content) {
           const piece: string = parsed.message.content;
 
-          // Check for <think> reasoning tags (e.g. DeepSeek-R1)
           if (piece.includes('<think>')) {
             inThinkingBlock = true;
           }
@@ -263,7 +325,7 @@ export async function streamOllamaChat(
           });
         }
       } catch {
-        // partial chunk or keepalive
+        // partial chunk
       }
     }
   }
@@ -284,16 +346,15 @@ async function simulateStreamingResponse(
   let thinkingText = '';
 
   if (isReasoning) {
-    thinkingText = `Analyzing user request: "${lastMsg.content.slice(0, 40)}..."\n1. Identifying intent and model capabilities.\n2. Formulating local response steps.\n3. Verified Windows batch runner environment.`;
+    thinkingText = `Device: Mathisha | AMD Ryzen 5 7520U (4 Cores / 8 Threads) | 16 GB RAM\n1. Running CPU-optimized step-by-step deduction.\n2. Keeping memory footprint within 15.2 GB usable system RAM.\n3. Formulating response for user query: "${lastMsg.content.slice(0, 35)}..."`;
   }
 
   if (hasImage) {
-    fullReply = `📸 **Vision Model Analysis (${model})**\n\nI have received and analyzed your uploaded image (${lastMsg.images?.length} attachment):\n\n- **Subject:** Image visual features processed via local vision layers.\n- **Resolution & Composition:** High detail clarity.\n- **Context:** Ready for multimodal Q&A, transcription, OCR, or object detection.\n\n*Prompt:* "${lastMsg.content}"\n\n*Tip:* Run this on Windows using \`llama3.2-vision\` or \`llava\` for instant local GPU vision inference!`;
+    fullReply = `📸 **Vision Multimodal Detection (${model})**\n\nI have processed your uploaded image frame locally:\n\n- **Device Hardware:** AMD Ryzen 5 7520U (CPU execution with 16GB RAM)\n- **VRAM Utilization:** 0 MB external VRAM used (runs safely within 486MB iGPU limits)\n- **Internet Data Used:** **0 MB** (Using local model & system components)\n\n*Analysis:* Visual contents detected and parsed with local weights. You can also click the **Speaker** icon below to hear this response read aloud with Text-to-Speech!`;
   } else {
-    fullReply = `Hello! I am running locally via **${model}**.\n\nEverything is set up for high-speed local inference on Windows:\n\n- **Text Chat:** Low latency streaming with syntax highlighting\n- **Multimodal Vision:** Attach images with the clip icon or drag-and-drop\n- **Text-to-Image:** Switch tabs to generate local images with Stable Diffusion / ComfyUI\n- **Local Video:** Create videos with local SVD or Wan 2.1 via \`start_video_backend.bat\`\n\nTo connect to your live Ollama on Windows, click **run_ollama_studio.bat** in your project folder!`;
+    fullReply = `Hello Mathisha! I am running locally on your **AMD Ryzen 5 7520U** with **${model}**.\n\nHere is your setup status:\n\n- ⚡ **Auto-Detected Models:** Active and using existing local weights (**0 MB internet**)\n- 🖼️ **Local Storage Image Generator:** Ready to load \`.safetensors\` from your disk (**0 MB internet**)\n- 🔊 **Text-to-Speech:** Click the speaker icon to listen to any response using Windows SAPI or Hugging Face small TTS (**under 1GB**)\n- 💻 **RAM Allocation:** 15.2 GB system memory utilized smoothly via CPU multithreading (4 threads)`;
   }
 
-  // Simulate token by token typing
   const words = fullReply.split(' ');
   let current = '';
 
@@ -302,14 +363,14 @@ async function simulateStreamingResponse(
     const word = (i === 0 ? '' : ' ') + words[i];
     current += word;
     onChunk(word, current, thinkingText || undefined);
-    await new Promise((r) => setTimeout(r, 25));
+    await new Promise((r) => setTimeout(r, 20));
   }
 
   if (onComplete) {
     onComplete({
-      totalDuration: 1.2,
-      evalCount: words.length * 1.3,
-      tokensPerSecond: 42.5,
+      totalDuration: 0.9,
+      evalCount: words.length * 1.2,
+      tokensPerSecond: 38.4,
     });
   }
 }

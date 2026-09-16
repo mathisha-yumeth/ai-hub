@@ -12,6 +12,7 @@ export interface OllamaModel {
     quantization_level: string;
   };
   isVision?: boolean;
+  isPreinstalled?: boolean;
 }
 
 export interface ChatAttachment {
@@ -47,6 +48,36 @@ export interface Conversation {
   systemPrompt?: string;
 }
 
+export interface TTSConfig {
+  enabled: boolean;
+  engine: 'native_windows' | 'huggingface_small';
+  voice: string;
+  rate: number; // 0.5 - 2.0
+  pitch: number; // 0.5 - 1.5
+  volume: number; // 0 - 1
+  autoPlay: boolean;
+}
+
+export interface LocalImageModel {
+  name: string;
+  path: string;
+  format: 'safetensors' | 'ckpt' | 'gguf' | 'directory';
+  sizeBytes?: number;
+  sizeFormatted?: string;
+  isAvailable: boolean;
+}
+
+export interface HardwareProfile {
+  deviceName: string;
+  processor: string;
+  totalRam: string;
+  usableRam: string;
+  gpu: string;
+  gpuVram: string;
+  isLowVram: boolean; // True for 486MB Radeon iGPU
+  recommendedThreads: number;
+}
+
 export interface AppSettings {
   ollamaUrl: string;
   videoUrl: string;
@@ -58,10 +89,16 @@ export interface AppSettings {
   contextLength: number;
   systemPrompt: string;
   demoMode: boolean;
+  // Mathisha's Hardware & Offline optimizations
+  cpuThreads: number;
+  lowVramMode: boolean;
+  dataSaverUnder1Gb: boolean;
+  localImageModelPath: string;
+  tts: TTSConfig;
 }
 
 export interface EndpointStatus {
-  ollama: { online: boolean; status: number; url: string; version?: string };
+  ollama: { online: boolean; status: number; url: string; version?: string; preinstalledCount?: number };
   video: { online: boolean; status: number; url: string };
   comfy: { online: boolean; status: number; url: string };
   sd: { online: boolean; status: number; url: string };
@@ -76,6 +113,7 @@ export interface GeneratedImage {
   height: number;
   seed: number;
   model: string;
+  sourceType: 'local_storage' | 'sd_webui' | 'procedural';
   createdAt: number;
 }
 

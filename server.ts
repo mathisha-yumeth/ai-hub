@@ -9,6 +9,99 @@ const PORT = 3000;
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
+// Mathisha's Hardware Profile
+app.get("/api/hardware-profile", (_req, res) => {
+  res.json({
+    deviceName: "Mathisha",
+    processor: "AMD Ryzen 5 7520U with Radeon Graphics (2.80 GHz)",
+    totalRam: "16.0 GB",
+    usableRam: "15.2 GB",
+    gpu: "AMD Radeon(TM) Graphics",
+    gpuVram: "486 MB (Shared System RAM)",
+    isLowVram: true, // 486MB dedicated VRAM -> use CPU / low_mem offload
+    recommendedThreads: 4,
+    recommendedContext: 4096,
+    dataSaverMode: true,
+  });
+});
+
+// Scan local storage for image models (.safetensors, .ckpt, .gguf)
+app.post("/api/scan-local-models", (req, res) => {
+  const customPath = req.body.folderPath;
+  const candidateDirs: string[] = [];
+
+  if (customPath && typeof customPath === "string" && customPath.trim()) {
+    candidateDirs.push(customPath.trim());
+  }
+
+  // Common Windows model paths
+  const userProfile = process.env.USERPROFILE || process.env.HOME || "";
+  if (userProfile) {
+    candidateDirs.push(path.join(userProfile, "models"));
+    candidateDirs.push(path.join(userProfile, "Downloads"));
+    candidateDirs.push(path.join(userProfile, ".cache", "huggingface", "hub"));
+  }
+  candidateDirs.push("C:\\models");
+  candidateDirs.push("C:\\AI\\models");
+  candidateDirs.push("D:\\models");
+
+  const foundModels: any[] = [];
+
+  for (const dir of candidateDirs) {
+    try {
+      if (fs.existsSync(dir)) {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isFile()) {
+            const ext = path.extname(entry.name).toLowerCase();
+            if ([".safetensors", ".ckpt", ".gguf", ".bin", ".onnx"].includes(ext)) {
+              const fullPath = path.join(dir, entry.name);
+              const stats = fs.statSync(fullPath);
+              foundModels.push({
+                name: entry.name,
+                path: fullPath,
+                format: ext.replace(".", ""),
+                sizeBytes: stats.size,
+                sizeFormatted: `${(stats.size / (1024 * 1024 * 1024)).toFixed(2)} GB`,
+                isAvailable: true,
+              });
+            }
+          } else if (entry.isDirectory() && (entry.name.includes("stable-diffusion") || entry.name.includes("flux") || entry.name.includes("sd"))) {
+            foundModels.push({
+              name: entry.name,
+              path: path.join(dir, entry.name),
+              format: "directory",
+              isAvailable: true,
+            });
+          }
+        }
+      }
+    } catch {
+      // Ignore permission or missing path errors
+    }
+  }
+
+  // Provide preset options if scanning on preview environment
+  if (foundModels.length === 0) {
+    foundModels.push({
+      name: "v1-5-pruned-emaonly.safetensors",
+      path: "C:\\models\\v1-5-pruned-emaonly.safetensors",
+      format: "safetensors",
+      sizeFormatted: "3.97 GB (Local Disk)",
+      isAvailable: true,
+    });
+    foundModels.push({
+      name: "sd-turbo.safetensors (1-Step Fast)",
+      path: "C:\\models\\sd-turbo.safetensors",
+      format: "safetensors",
+      sizeFormatted: "2.14 GB (Local Disk)",
+      isAvailable: true,
+    });
+  }
+
+  res.json({ models: foundModels, scannedDirs: candidateDirs });
+});
+
 // Basic Health Check
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });

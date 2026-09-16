@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Image as ImageIcon,
   Sparkles,
@@ -7,14 +7,16 @@ import {
   Wand2,
   RefreshCw,
   Sliders,
-  Check,
-  Copy,
   Layers,
   ArrowRight,
   Loader2,
+  HardDrive,
+  FolderSearch,
+  Cpu,
+  CheckCircle,
 } from 'lucide-react';
-import { AppSettings, GeneratedImage } from '../types';
-import { enhancePromptWithOllama, generateLocalImage } from '../services/imageApi';
+import { AppSettings, GeneratedImage, LocalImageModel } from '../types';
+import { enhancePromptWithOllama, generateLocalImage, scanLocalStorageModels } from '../services/imageApi';
 
 interface ImageGenViewProps {
   settings: AppSettings;
@@ -29,10 +31,12 @@ export const ImageGenView: React.FC<ImageGenViewProps> = ({
   onSendToVideo,
   onOpenWindowsModal,
 }) => {
-  const [prompt, setPrompt] = useState('Cyberpunk street in the rain with glowing neon signs, reflective puddles, 8k resolution');
+  const [prompt, setPrompt] = useState(
+    'Cyberpunk street in the rain with glowing neon signs, reflective puddles, 8k resolution'
+  );
   const [negativePrompt, setNegativePrompt] = useState('blurry, deformed, bad anatomy, low quality');
   const [aspectRatio, setAspectRatio] = useState<'1:1' | '16:9' | '9:16' | '4:3'>('16:9');
-  const [steps, setSteps] = useState(25);
+  const [steps, setSteps] = useState(20);
   const [cfgScale, setCfgScale] = useState(7.0);
   const [seed, setSeed] = useState<number | ''>('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -40,7 +44,31 @@ export const ImageGenView: React.FC<ImageGenViewProps> = ({
   const [progressMsg, setProgressMsg] = useState('');
   const [gallery, setGallery] = useState<GeneratedImage[]>([]);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Local Storage Models state
+  const [localModels, setLocalModels] = useState<LocalImageModel[]>([]);
+  const [selectedLocalModelPath, setSelectedLocalModelPath] = useState<string>(
+    settings.localImageModelPath || 'C:\\models\\v1-5-pruned-emaonly.safetensors'
+  );
+  const [customFolder, setCustomFolder] = useState('');
+  const [isScanning, setIsScanning] = useState(false);
+
+  useEffect(() => {
+    handleScanModels();
+  }, []);
+
+  const handleScanModels = async (folder?: string) => {
+    setIsScanning(true);
+    try {
+      const models = await scanLocalStorageModels(folder || customFolder);
+      setLocalModels(models);
+      if (models.length > 0 && !selectedLocalModelPath) {
+        setSelectedLocalModelPath(models[0].path);
+      }
+    } finally {
+      setIsScanning(false);
+    }
+  };
 
   const getDimensions = () => {
     switch (aspectRatio) {
@@ -72,7 +100,7 @@ export const ImageGenView: React.FC<ImageGenViewProps> = ({
   const handleGenerate = async () => {
     if (!prompt.trim() || isGenerating) return;
     setIsGenerating(true);
-    setProgressMsg('Preparing diffusion model...');
+    setProgressMsg('Accessing local storage model checkpoint...');
 
     const dims = getDimensions();
     const activeSeed = seed !== '' ? Number(seed) : Math.floor(Math.random() * 9999999);
@@ -87,6 +115,7 @@ export const ImageGenView: React.FC<ImageGenViewProps> = ({
           steps,
           cfgScale,
           seed: activeSeed,
+          localModelPath: selectedLocalModelPath,
         },
         settings,
         (msg) => setProgressMsg(msg)
@@ -110,25 +139,84 @@ export const ImageGenView: React.FC<ImageGenViewProps> = ({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 space-y-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="flex-1 overflow-y-auto p-5 space-y-5">
+      <div className="max-w-6xl mx-auto space-y-5">
         {/* Title & Local Engine Info */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-800">
           <div>
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
               <ImageIcon className="w-5 h-5 text-cyan-400" />
-              Local Text-to-Image Studio
+              Local Storage Image Studio
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Render local diffusion images. Compatible with local ComfyUI, Automatic1111, or built-in engine.
+              Load and run models directly from your hard drive (`.safetensors`, `.ckpt`, GGUF) with 0 MB internet consumption.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              Prompt Enhancer: {selectedModel}
+            <span className="text-xs font-mono px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 flex items-center gap-1.5">
+              <HardDrive className="w-3.5 h-3.5" />
+              Local Storage: 0 MB Internet
             </span>
+            <span className="text-xs font-mono px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 flex items-center gap-1.5">
+              <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+              AMD Ryzen 5 (CPU Offload)
+            </span>
+          </div>
+        </div>
+
+        {/* Local Storage Checkpoint Picker Bar */}
+        <div className="p-3.5 bg-slate-900 border border-slate-800 rounded-2xl space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+              <HardDrive className="w-4 h-4 text-cyan-400" />
+              Local Storage Model Checkpoint (.safetensors / .ckpt)
+            </span>
+            <span className="text-[11px] text-emerald-400 font-mono">
+              Using existing files on your PC (No download needed)
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
+            <div className="md:col-span-8 flex gap-2">
+              <select
+                value={selectedLocalModelPath}
+                onChange={(e) => setSelectedLocalModelPath(e.target.value)}
+                className="flex-1 bg-slate-950 text-xs font-mono text-cyan-300 border border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-cyan-500 truncate"
+              >
+                {localModels.map((m, idx) => (
+                  <option key={idx} value={m.path}>
+                    {m.name} ({m.sizeFormatted || 'Local'}) - {m.path}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                onClick={() => handleScanModels()}
+                disabled={isScanning}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-xl flex items-center gap-1.5 transition shrink-0"
+                title="Scan PC for .safetensors files"
+              >
+                <FolderSearch className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
+                <span>Scan Disk</span>
+              </button>
+            </div>
+
+            <div className="md:col-span-4 flex gap-1.5">
+              <input
+                type="text"
+                value={customFolder}
+                onChange={(e) => setCustomFolder(e.target.value)}
+                placeholder="Or custom path: C:\models..."
+                className="flex-1 bg-slate-950 text-xs font-mono text-white border border-slate-800 rounded-xl px-2.5 py-2 focus:outline-none focus:border-cyan-500"
+              />
+              <button
+                onClick={() => handleScanModels(customFolder)}
+                className="px-2.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded-xl transition shrink-0"
+              >
+                Load
+              </button>
+            </div>
           </div>
         </div>
 
@@ -183,7 +271,7 @@ export const ImageGenView: React.FC<ImageGenViewProps> = ({
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
               <h3 className="text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-1.5">
                 <Sliders className="w-3.5 h-3.5 text-cyan-400" />
-                Parameters
+                Parameters (CPU / Low-VRAM Mode)
               </h3>
 
               {/* Aspect Ratio */}
@@ -211,13 +299,13 @@ export const ImageGenView: React.FC<ImageGenViewProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <div className="flex justify-between text-xs mb-1">
-                    <span className="text-slate-400">Steps</span>
+                    <span className="text-slate-400">Steps (Fast CPU)</span>
                     <span className="font-mono text-cyan-400">{steps}</span>
                   </div>
                   <input
                     type="range"
                     min="10"
-                    max="50"
+                    max="40"
                     value={steps}
                     onChange={(e) => setSteps(parseInt(e.target.value))}
                     className="w-full accent-cyan-500 cursor-pointer"
@@ -278,7 +366,7 @@ export const ImageGenView: React.FC<ImageGenViewProps> = ({
                 ) : (
                   <>
                     <Wand2 className="w-4 h-4" />
-                    <span>Generate Local Image</span>
+                    <span>Generate Local Image (0 MB Internet)</span>
                   </>
                 )}
               </button>
@@ -303,8 +391,8 @@ export const ImageGenView: React.FC<ImageGenViewProps> = ({
                       "{selectedImage.prompt}"
                     </p>
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
-                      <span className="text-[11px] font-mono text-slate-500">
-                        {selectedImage.width}x{selectedImage.height} • Seed: {selectedImage.seed}
+                      <span className="text-[11px] font-mono text-cyan-400">
+                        {selectedImage.model} • {selectedImage.width}x{selectedImage.height}
                       </span>
 
                       <div className="flex items-center gap-2">
@@ -338,7 +426,7 @@ export const ImageGenView: React.FC<ImageGenViewProps> = ({
                   <div>
                     <p className="text-sm font-semibold text-slate-300">No Image Rendered Yet</p>
                     <p className="text-xs text-slate-500 max-w-sm mt-1">
-                      Type your prompt or click 'Enhance with Ollama' and click Generate to produce high-res local diffusion art.
+                      Select a local .safetensors model checkpoint from your hard drive and click Generate to produce local art with 0 MB internet.
                     </p>
                   </div>
                 </div>

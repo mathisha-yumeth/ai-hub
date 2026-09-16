@@ -34,7 +34,21 @@ const DEFAULT_SETTINGS: AppSettings = {
   topP: 0.9,
   contextLength: 4096,
   systemPrompt: '',
-  demoMode: true, // Default to demo/preview fallback so app works immediately in cloud preview
+  demoMode: true,
+  // AMD Ryzen 5 7520U + 16GB RAM + 486MB Radeon Graphics Optimization
+  cpuThreads: 4,
+  lowVramMode: true,
+  dataSaverUnder1Gb: true,
+  localImageModelPath: 'C:\\models\\v1-5-pruned-emaonly.safetensors',
+  tts: {
+    enabled: true,
+    engine: 'native_windows',
+    voice: '',
+    rate: 1.0,
+    pitch: 1.0,
+    volume: 1.0,
+    autoPlay: false,
+  },
 };
 
 export default function App() {
@@ -43,7 +57,17 @@ export default function App() {
   // App Settings
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('ollama_studio_settings');
-    return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          ...DEFAULT_SETTINGS,
+          ...parsed,
+          tts: { ...DEFAULT_SETTINGS.tts, ...(parsed.tts || {}) },
+        };
+      } catch {}
+    }
+    return DEFAULT_SETTINGS;
   });
 
   // Endpoints status
@@ -103,10 +127,9 @@ export default function App() {
     localStorage.setItem('ollama_studio_convos', JSON.stringify(conversations));
   }, [conversations]);
 
-  // Check Endpoints and Load Models
+  // Check Endpoints and Auto-Detect Models
   const checkStatusAndLoadModels = async () => {
     try {
-      // 1. Check endpoints via server endpoint checker
       const res = await fetch('/api/check-endpoints', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -121,16 +144,13 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setEndpointStatus(data);
-        // If Ollama is really online locally, disable demoMode automatically!
         if (data.ollama.online && settings.demoMode) {
           setSettings((prev) => ({ ...prev, demoMode: false }));
         }
       }
-    } catch {
-      // Ignore network errors in preview
-    }
+    } catch {}
 
-    // 2. Fetch models from Ollama
+    // Auto-detect pre-installed Ollama models directly from Windows daemon
     try {
       const fetchedModels = await fetchOllamaModels(settings);
       setModels(fetchedModels);
@@ -138,7 +158,7 @@ export default function App() {
         setSelectedModel(fetchedModels[0].name);
       }
     } catch (err) {
-      console.warn('Could not list models:', err);
+      console.warn('Auto-detect pre-installed models:', err);
     }
   };
 
@@ -189,7 +209,6 @@ export default function App() {
   const handleSendMessage = async (text: string, attachments: ChatAttachment[] = []) => {
     if (isStreaming) return;
 
-    // Convert attachments to Ollama base64 format (without data:image/png;base64, prefix)
     const rawImages = attachments.map((att) => att.base64.split(',')[1] || att.base64);
 
     const userMessage: ChatMessage = {
@@ -210,7 +229,6 @@ export default function App() {
       timestamp: Date.now(),
     };
 
-    // Update conversation state with user message and placeholder assistant message
     setConversations((prev) =>
       prev.map((c) => {
         if (c.id === currentConvoId) {
@@ -323,7 +341,6 @@ export default function App() {
     }
 
     if (lastUserMsg) {
-      // Remove last assistant message
       setConversations((prev) =>
         prev.map((c) =>
           c.id === currentConvoId
@@ -340,7 +357,6 @@ export default function App() {
     }
   };
 
-  // Switch to vision model helper
   const handleSwitchToVisionModel = () => {
     const visionModel = models.find((m) => m.isVision);
     if (visionModel) {
@@ -351,7 +367,6 @@ export default function App() {
     }
   };
 
-  // Switch to Video Studio from Image Gen
   const handleSendToVideo = (imageUrl: string, prompt: string) => {
     setVideoHandoffImage(imageUrl);
     setVideoHandoffPrompt(prompt);
@@ -400,7 +415,7 @@ export default function App() {
               isModelVision={currentIsVision}
             />
 
-            {/* Central Chat & Vision Canvas */}
+            {/* Central Chat, Vision & Speech Canvas */}
             <main className="flex-1 flex flex-col h-full bg-slate-950 min-w-0">
               <ChatView
                 messages={currentConversation.messages}
@@ -410,6 +425,7 @@ export default function App() {
                 selectedModel={selectedModel}
                 isModelVision={currentIsVision}
                 onOpenWindowsModal={() => setIsWindowsModalOpen(true)}
+                ttsConfig={settings.tts}
               />
 
               <ChatInput

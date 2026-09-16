@@ -13,8 +13,14 @@ import {
   Zap,
   Eye,
   Terminal,
+  Volume2,
+  VolumeX,
+  Cpu,
+  HardDrive,
+  ShieldCheck,
 } from 'lucide-react';
-import { ChatMessage, OllamaModel } from '../types';
+import { ChatMessage, TTSConfig } from '../types';
+import { speakText, stopSpeaking } from '../services/ttsService';
 
 interface ChatViewProps {
   messages: ChatMessage[];
@@ -24,6 +30,7 @@ interface ChatViewProps {
   selectedModel: string;
   isModelVision: boolean;
   onOpenWindowsModal: () => void;
+  ttsConfig: TTSConfig;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -34,14 +41,34 @@ export const ChatView: React.FC<ChatViewProps> = ({
   selectedModel,
   isModelVision,
   onOpenWindowsModal,
+  ttsConfig,
 }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedThinking, setExpandedThinking] = useState<Record<string, boolean>>({});
+  const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isStreaming]);
+
+  // Handle TTS Speak / Stop
+  const handleToggleSpeak = (msgId: string, content: string) => {
+    if (speakingMsgId === msgId) {
+      stopSpeaking();
+      setSpeakingMsgId(null);
+    } else {
+      stopSpeaking();
+      setSpeakingMsgId(msgId);
+      speakText(
+        content,
+        ttsConfig,
+        () => setSpeakingMsgId(msgId),
+        () => setSpeakingMsgId(null),
+        () => setSpeakingMsgId(null)
+      );
+    }
+  };
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -59,13 +86,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
   // Sample prompt chips for new conversation
   const samplePrompts = [
     {
-      title: 'Analyze & Transcribe Image',
+      title: 'Analyze Image with Vision',
       prompt: 'Describe everything in this image in detail, noting key subjects, colors, lighting, and any legible text.',
       vision: true,
     },
     {
-      title: 'Write a Windows PowerShell Script',
-      prompt: 'Write a PowerShell script that monitors CPU and RAM usage and logs warnings if RAM exceeds 85%.',
+      title: 'Windows PowerShell Script',
+      prompt: 'Write an optimized Windows PowerShell script to clean temporary cache files and monitor RAM usage.',
       vision: false,
     },
     {
@@ -74,27 +101,68 @@ export const ChatView: React.FC<ChatViewProps> = ({
       vision: false,
     },
     {
-      title: 'Enhance Stable Diffusion Prompt',
-      prompt: 'Write an ultra-detailed, photorealistic Stable Diffusion XL prompt for a futuristic city with flying neon vehicles in the rain.',
+      title: 'Prompt for Local Image Gen',
+      prompt: 'Write an ultra-detailed, photorealistic Stable Diffusion prompt for a futuristic city with flying neon vehicles in the rain.',
       vision: false,
     },
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+    <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      {/* Hardware Profile Top Ribbon */}
+      <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 bg-slate-900/60 border border-slate-800/80 rounded-xl text-xs text-slate-400">
+        <div className="flex items-center gap-2">
+          <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="font-semibold text-slate-200">Device: Mathisha</span>
+          <span className="text-slate-500">•</span>
+          <span className="text-slate-300">AMD Ryzen 5 7520U (4 Cores / 8 Threads)</span>
+          <span className="text-slate-500">•</span>
+          <span className="text-slate-300">16 GB RAM</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded text-[11px] font-mono flex items-center gap-1">
+            <ShieldCheck className="w-3 h-3" />
+            0 MB Internet (Local Pre-installed)
+          </span>
+          <span className="bg-purple-950/60 border border-purple-500/30 text-purple-300 px-2 py-0.5 rounded text-[11px] font-mono">
+            Low VRAM Offload (486MB)
+          </span>
+        </div>
+      </div>
+
       {messages.length === 0 ? (
-        <div className="max-w-2xl mx-auto py-10 text-center space-y-6 animate-fade-in">
+        <div className="max-w-2xl mx-auto py-8 text-center space-y-6 animate-fade-in">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 flex items-center justify-center mx-auto text-cyan-400 shadow-xl shadow-cyan-500/10">
             <Bot className="w-8 h-8" />
           </div>
 
           <div>
             <h2 className="text-xl font-bold text-white tracking-tight">
-              Chat with Local Ollama
+              Local Ollama & Vision Studio
             </h2>
             <p className="text-xs text-slate-400 max-w-md mx-auto mt-1.5 leading-relaxed">
-              Running locally on your Windows machine. Zero cloud dependency, private, and unlimited.
+              Auto-detected pre-installed models on your Windows PC. Everything executes completely offline with zero data consumption.
             </p>
+          </div>
+
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-3 gap-2.5 max-w-lg mx-auto text-left">
+            <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl">
+              <span className="text-[10px] text-slate-400 block uppercase font-mono">Chat & Vision</span>
+              <span className="text-xs font-semibold text-cyan-400 mt-0.5 block">0 MB Data</span>
+              <span className="text-[10px] text-slate-500">Local Ollama</span>
+            </div>
+            <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl">
+              <span className="text-[10px] text-slate-400 block uppercase font-mono">Local Images</span>
+              <span className="text-xs font-semibold text-emerald-400 mt-0.5 block">From Disk</span>
+              <span className="text-[10px] text-slate-500">.safetensors / CPU</span>
+            </div>
+            <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl">
+              <span className="text-[10px] text-slate-400 block uppercase font-mono">Text-to-Speech</span>
+              <span className="text-xs font-semibold text-purple-400 mt-0.5 block">&lt; 45 MB</span>
+              <span className="text-[10px] text-slate-500">Windows SAPI / HF</span>
+            </div>
           </div>
 
           {/* Prompt Suggestion Cards */}
@@ -120,7 +188,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             ))}
           </div>
 
-          <div className="pt-4 border-t border-slate-800/80 flex items-center justify-center gap-2 text-xs text-slate-500">
+          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-center gap-2 text-xs text-slate-500">
             <Terminal className="w-3.5 h-3.5 text-emerald-400" />
             <span>Click</span>
             <button
@@ -129,14 +197,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
             >
               run_ollama_studio.bat
             </button>
-            <span>in your folder to run natively on Windows</span>
+            <span>to open on your PC</span>
           </div>
         </div>
       ) : (
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-4xl mx-auto space-y-5">
           {messages.map((msg) => {
             const isUser = msg.role === 'user';
-            const isThinkingExpanded = expandedThinking[msg.id] !== false; // default expanded
+            const isThinkingExpanded = expandedThinking[msg.id] !== false;
+            const isSpeaking = speakingMsgId === msg.id;
 
             return (
               <div
@@ -152,7 +221,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   </div>
                 )}
 
-                {/* Message Body */}
+                {/* Message Bubble */}
                 <div
                   className={`max-w-[85%] space-y-2 ${
                     isUser
@@ -175,7 +244,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </div>
                   )}
 
-                  {/* DeepSeek Reasoning Thinking Process Block */}
+                  {/* DeepSeek Reasoning Thinking Block */}
                   {!isUser && msg.thinking && (
                     <div className="rounded-xl border border-slate-800 bg-slate-950/70 overflow-hidden mb-3">
                       <button
@@ -184,7 +253,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       >
                         <span className="flex items-center gap-1.5 text-cyan-400 font-medium">
                           <BrainCircuit className="w-3.5 h-3.5" />
-                          Thinking Process
+                          Reasoning & Deduction
                         </span>
                         {isThinkingExpanded ? (
                           <ChevronDown className="w-3.5 h-3.5" />
@@ -200,7 +269,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </div>
                   )}
 
-                  {/* Main Text Content */}
+                  {/* Message Content */}
                   <div className="prose prose-invert prose-sm max-w-none text-slate-100 leading-relaxed break-words font-sans">
                     <ReactMarkdown
                       components={{
@@ -247,7 +316,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </ReactMarkdown>
                   </div>
 
-                  {/* Assistant Footer Info (Speed, Metrics, Copy) */}
+                  {/* Assistant Footer Info (TTS Read Aloud, Speed, Copy) */}
                   {!isUser && (
                     <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-800 text-[11px] text-slate-500">
                       <div className="flex items-center gap-2">
@@ -269,7 +338,30 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
+                        {/* Text-to-Speech Speak Button */}
+                        <button
+                          onClick={() => handleToggleSpeak(msg.id, msg.content)}
+                          className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition ${
+                            isSpeaking
+                              ? 'bg-purple-600 text-white animate-pulse'
+                              : 'text-slate-400 hover:text-purple-300 hover:bg-slate-800'
+                          }`}
+                          title={isSpeaking ? 'Stop speaking' : 'Read aloud with Text-to-Speech'}
+                        >
+                          {isSpeaking ? (
+                            <>
+                              <VolumeX className="w-3.5 h-3.5" />
+                              <span className="text-[10px] font-mono">Stop</span>
+                            </>
+                          ) : (
+                            <>
+                              <Volume2 className="w-3.5 h-3.5" />
+                              <span className="text-[10px] font-mono">Speak</span>
+                            </>
+                          )}
+                        </button>
+
                         <button
                           onClick={() => handleCopy(msg.content, msg.id)}
                           className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition"
@@ -300,7 +392,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           {isStreaming && (
             <div className="flex items-center gap-2 text-xs text-cyan-400 animate-pulse pl-11">
               <span className="w-2 h-2 rounded-full bg-cyan-400" />
-              <span>Generating response locally...</span>
+              <span>Generating response locally on Ryzen 5 CPU...</span>
             </div>
           )}
 
