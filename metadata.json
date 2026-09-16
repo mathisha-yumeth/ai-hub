@@ -1,0 +1,7 @@
+{
+  "name": "Local Ollama Studio",
+  "description": "A Windows-friendly web GUI for local Ollama models with text-to-text, image-to-text vision, text-to-image, and local video generation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
